@@ -1,0 +1,1055 @@
+openapi: 3.0.3
+info:
+  title: microservices-course-ticketing-app
+  version: main
+  description: Unified API specification for the ticketing microservices application
+
+servers:
+  - url: /
+    description: Default server
+
+tags:
+  - name: Health
+    description: Health check endpoints for all services
+  - name: Auth
+    description: Authentication operations
+  - name: Users
+    description: User management operations
+  - name: Tickets
+    description: Ticket management operations
+  - name: Orders
+    description: Order management operations
+  - name: Payments
+    description: Payment processing operations
+  - name: Client
+    description: Client service operations
+
+paths:
+  /api/users/health:
+    get:
+      tags:
+        - Health
+        - Auth
+      operationId: getAuthHealth
+      summary: Health check endpoint for auth service
+      description: Returns the health status of the auth service and its dependencies
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthHealthResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/users/current-user:
+    get:
+      tags:
+        - Users
+      operationId: getCurrentUser
+      summary: Get current authenticated user
+      description: Returns the currently authenticated user based on the JWT in the session cookie
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Current user retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/users/sign-up:
+    post:
+      tags:
+        - Auth
+      operationId: signUp
+      summary: Register a new user
+      description: Creates a new user account with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+      responses:
+        '201':
+          description: User created successfully
+          headers:
+            Set-Cookie:
+              description: Session cookie containing JWT
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Validation error or email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/users/sign-in:
+    post:
+      tags:
+        - Auth
+      operationId: signIn
+      summary: Authenticate user and create session
+      description: Authenticates a user with email and password, creates a session cookie with JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+      responses:
+        '200':
+          description: User authenticated successfully
+          headers:
+            Set-Cookie:
+              description: Session cookie containing JWT
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid credentials or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/users/sign-out:
+    post:
+      tags:
+        - Auth
+      operationId: signOut
+      summary: Logout user and clear session
+      description: Clears the session cookie to log out the user
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: User signed out successfully
+          headers:
+            Set-Cookie:
+              description: Cleared session cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/tickets/health:
+    get:
+      tags:
+        - Health
+        - Tickets
+      operationId: getTicketsHealth
+      summary: Health check endpoint for tickets service
+      description: Returns the health status of the tickets service including database and NATS connectivity
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketsHealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketsHealthResponse'
+
+  /api/tickets:
+    post:
+      tags:
+        - Tickets
+      operationId: createTicket
+      summary: Create a new ticket
+      description: Creates a new ticket with the provided title and price. Requires authentication.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicketRequest'
+      responses:
+        '201':
+          description: Ticket created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags:
+        - Tickets
+      operationId: listTickets
+      summary: List all tickets
+      description: Returns a list of all available tickets
+      security: []
+      responses:
+        '200':
+          description: List of tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ticket'
+
+  /api/tickets/{id}:
+    get:
+      tags:
+        - Tickets
+      operationId: getTicketById
+      summary: Get ticket by ID
+      description: Returns a single ticket by its ID
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      responses:
+        '200':
+          description: Ticket found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '400':
+          description: Invalid ticket ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Tickets
+      operationId: updateTicket
+      summary: Update ticket by ID
+      description: Updates an existing ticket. Only the ticket owner can update it. Cannot update a reserved ticket.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTicketRequest'
+      responses:
+        '200':
+          description: Ticket updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '400':
+          description: Validation error or ticket is reserved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Tickets
+      operationId: deleteTicket
+      summary: Delete ticket by ID
+      description: Deletes an existing ticket. Only the ticket owner can delete it.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      responses:
+        '204':
+          description: Ticket deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/health:
+    get:
+      tags:
+        - Health
+        - Orders
+      operationId: getOrdersHealth
+      summary: Health check endpoint for orders service
+      description: Returns the health status of the orders service
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/orders:
+    get:
+      tags:
+        - Orders
+      operationId: listOrders
+      summary: List all orders for the current user
+      description: Retrieves all orders belonging to the currently authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Orders
+      operationId: createOrder
+      summary: Create a new order for a ticket
+      description: Creates a new order for the specified ticket. The ticket must exist and not already be reserved.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Invalid request (validation error or ticket already reserved)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{orderId}:
+    get:
+      tags:
+        - Orders
+      operationId: getOrder
+      summary: Fetch a specific order by ID
+      description: Retrieves a specific order by its ID. User can only access their own orders.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Order retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{orderId}/cancel:
+    patch:
+      tags:
+        - Orders
+      operationId: cancelOrder
+      summary: Cancel an existing order
+      description: Cancels an existing order. User can only cancel their own orders.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Order cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/payments/health:
+    get:
+      tags:
+        - Health
+        - Payments
+      summary: Health check endpoint for payments service
+      operationId: getPaymentsHealth
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/payments:
+    post:
+      tags:
+        - Payments
+      summary: Create a new payment charge via Stripe
+      operationId: createPayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Bad request - validation error or invalid order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Payments
+      summary: Fetch all payments for current user
+      operationId: listPayments
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of payments for the authenticated user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/payments/{id}:
+    get:
+      tags:
+        - Payments
+      summary: Fetch payment by ID
+      operationId: getPaymentById
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /health/check:
+    get:
+      tags:
+        - Health
+        - Client
+      operationId: getClientHealthCheck
+      summary: Health check endpoint for client service
+      description: Returns the health status of the client service and its dependencies
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientHealthCheckResponse'
+        '503':
+          description: Service is unhealthy - one or more dependencies are down
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientHealthCheckResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from the auth service
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: JWT token stored in session cookie managed by cookie-session
+
+  parameters:
+    TicketId:
+      name: id
+      in: path
+      required: true
+      description: MongoDB ObjectId of the ticket
+      schema:
+        type: string
+        pattern: '^[a-fA-F0-9]{24}$'
+        example: '507f1f77bcf86cd799439011'
+
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      description: The unique identifier of the order
+      schema:
+        type: string
+        example: '507f1f77bcf86cd799439011'
+
+    PaymentId:
+      name: id
+      in: path
+      required: true
+      description: Unique identifier of the payment
+      schema:
+        type: string
+        example: '507f1f77bcf86cd799439011'
+
+  responses:
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Not authorized to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+      required:
+        - status
+
+    AuthHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        mongodb:
+          type: string
+          description: MongoDB connection status
+          example: connected
+      required:
+        - status
+
+    TicketsHealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - error
+          description: Overall health status
+          example: ok
+        mongodb:
+          type: string
+          enum:
+            - connected
+            - disconnected
+          description: MongoDB connection status
+          example: connected
+        nats:
+          type: string
+          enum:
+            - connected
+            - disconnected
+          description: NATS Streaming connection status
+          example: connected
+
+    ClientHealthCheckResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - service
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+          description: Overall health status of the service
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of the health check
+        service:
+          type: string
+          example: client
+          description: Name of the service
+        dependencies:
+          type: object
+          properties:
+            ingressNginx:
+              $ref: '#/components/schemas/DependencyHealth'
+            userService:
+              $ref: '#/components/schemas/DependencyHealth'
+          description: Health status of external dependencies
+
+    DependencyHealth:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+            - unknown
+          description: Health status of the dependency
+        latencyMs:
+          type: integer
+          description: Response latency in milliseconds
+        error:
+          type: string
+          description: Error message if the dependency is unhealthy
+
+    CurrentUserResponse:
+      type: object
+      properties:
+        currentUser:
+          allOf:
+            - $ref: '#/components/schemas/CurrentUser'
+          nullable: true
+          description: Current user or null if not authenticated
+
+    CurrentUser:
+      type: object
+      properties:
+        id:
+          type: string
+          description: User ID from JWT payload
+        email:
+          type: string
+          format: email
+          description: User email from JWT payload
+      required:
+        - id
+        - email
+
+    SignUpRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address (must be valid email format)
+        password:
+          type: string
+          minLength: 4
+          maxLength: 20
+          description: User password (4-20 characters)
+      required:
+        - email
+        - password
+
+    SignInRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+        password:
+          type: string
+          description: User password
+      required:
+        - email
+        - password
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: User ID
+        email:
+          type: string
+          format: email
+          description: User email address
+      required:
+        - id
+        - email
+
+    EmptyResponse:
+      type: object
+      description: Empty response body
+
+    Ticket:
+      type: object
+      required:
+        - id
+        - title
+        - price
+        - userId
+        - version
+      properties:
+        id:
+          type: string
+          description: MongoDB ObjectId of the ticket
+          example: '507f1f77bcf86cd799439011'
+        title:
+          type: string
+          description: Title of the ticket
+          example: Concert Ticket
+        price:
+          type: number
+          format: float
+          minimum: 0
+          description: Price of the ticket in dollars
+          example: 99.99
+        userId:
+          type: string
+          description: MongoDB ObjectId of the user who created the ticket
+          example: '507f1f77bcf86cd799439012'
+        orderId:
+          type: string
+          nullable: true
+          description: MongoDB ObjectId of the order reserving this ticket, null if not reserved
+          example: '507f1f77bcf86cd799439013'
+        version:
+          type: integer
+          description: Version number for optimistic concurrency control
+          example: 0
+
+    CreateTicketRequest:
+      type: object
+      required:
+        - title
+        - price
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Title of the ticket
+          example: Concert Ticket
+        price:
+          type: number
+          format: float
+          minimum: 0
+          exclusiveMinimum: true
+          description: Price of the ticket (must be greater than 0)
+          example: 99.99
+
+    UpdateTicketRequest:
+      type: object
+      required:
+        - title
+        - price
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Updated title of the ticket
+          example: Updated Concert Ticket
+        price:
+          type: number
+          format: float
+          minimum: 0
+          exclusiveMinimum: true
+          description: Updated price of the ticket (must be greater than 0)
+          example: 149.99
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the order
+          example: '507f1f77bcf86cd799439011'
+        userId:
+          type: string
+          description: ID of the user who created the order
+          example: '507f1f77bcf86cd799439012'
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        expiresAt:
+          type: string
+          format: date-time
+          description: Timestamp when the order reservation expires
+        ticket:
+          $ref: '#/components/schemas/OrderTicket'
+        version:
+          type: integer
+          description: Version number for optimistic concurrency control
+      required:
+        - id
+        - userId
+        - status
+        - expiresAt
+        - ticket
+
+    OrderStatus:
+      type: string
+      enum:
+        - created
+        - cancelled
+        - awaiting:payment
+        - complete
+      description: Current status of the order
+
+    OrderTicket:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the ticket
+          example: '507f1f77bcf86cd799439011'
+        title:
+          type: string
+          description: Title of the ticket
+        price:
+          type: number
+          format: float
+          description: Price of the ticket in dollars
+        version:
+          type: integer
+          description: Version number for optimistic concurrency control
+      required:
+        - id
+        - title
+        - price
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        ticketId:
+          type: string
+          description: The ID of the ticket to order
+          example: '507f1f77bcf86cd799439011'
+      required:
+        - ticketId
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the payment
+          example: '507f1f77bcf86cd799439011'
+        orderId:
+          type: string
+          description: ID of the associated order
+          example: '507f1f77bcf86cd799439012'
+        stripeId:
+          type: string
+          description: Stripe charge ID
+          example: ch_1234567890
+        version:
+          type: integer
+          description: Document version for optimistic concurrency control
+          example: 0
+      required:
+        - id
+        - orderId
+        - stripeId
+
+    CreatePaymentRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Stripe payment token from client
+          example: tok_visa
+        orderId:
+          type: string
+          description: ID of the order to pay for
+          example: '507f1f77bcf86cd799439011'
+      required:
+        - token
+        - orderId
+
+    PaymentOrder:
+      type: object
+      description: Order model replicated from orders service
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the order
+          example: '507f1f77bcf86cd799439012'
+        userId:
+          type: string
+          description: ID of the user who placed the order
+          example: '507f1f77bcf86cd799439013'
+        status:
+          type: string
+          description: Current status of the order
+          enum:
+            - created
+            - cancelled
+            - awaiting:payment
+            - complete
+          example: created
+        price:
+          type: number
+          format: float
+          description: Price of the order in dollars
+          example: 19.99
+        version:
+          type: integer
+          description: Document version for optimistic concurrency control
+          example: 0
+      required:
+        - id
+        - userId
+        - status
+        - price
+
+    ErrorResponse:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+
+    ErrorDetail:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message
+          example: Not authorized
+        field:
+          type: string
+          description: Field that caused the error (if applicable)
+          example: title
+      required:
+        - message
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationErrorDetail'
+
+    ValidationErrorDetail:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Validation error message
+          example: Title is required
+        field:
+          type: string
+          description: Field that failed validation
+          example: title
+      required:
+        - message

@@ -1,0 +1,11 @@
+version: "1.0"
+repository_id: microservices-course-ticketing-app
+branch: main
+commit_sha: a403fff288018e2dbbe4bd55b6d96446a2ef30ed
+last_full_analysis: 2026-11-10T20:25:08.791Z
+last_incremental_update: 2026-11-10T20:25:08.791Z
+analyzed_commits:
+  - a403fff288018e2dbbe4bd55b6d96446a2ef30ed
+token_cost: 10.2176492
+service_count: 8
+total_endpoints: 21
